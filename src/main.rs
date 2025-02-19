@@ -1,4 +1,5 @@
 mod ray;
+mod shape;
 
 use nalgebra::Vector3;
 use std::io::{self, Write};
@@ -53,6 +54,9 @@ fn main() {
 }
 
 fn ray_colour(r: &ray::Ray) -> Colour {
+    if hit_sphere(&Vector3::new(0.0, 0.0, -1.0), 0.5, &r) {
+        return Colour::new(1.0, 0.0, 0.0);
+    }
     let unit_direction = r.direction();
     let a = 0.5 * (unit_direction.y + 1.0);
 
@@ -69,4 +73,16 @@ fn write_colour(pixel_colour: &Colour) {
     let bbyte = (255.999 * b) as i64;
 
     println!("{} {} {}", rbyte, gbyte, bbyte);
+}
+
+fn hit_sphere(centre: &Vector3<f64>, radius: f64, r: &ray::Ray) -> bool {
+    let oc = centre - r.origin();
+    let oc: Vector3<f64> = oc.into();
+    let a = r.direction().dot(r.direction());
+    let b = -2.0 * r.direction().dot(&oc);
+    let c = oc.dot(&oc) - radius * radius;
+
+    let discriminant = b * b - 4.0 * a * c;
+
+    discriminant >= 0.0
 }
