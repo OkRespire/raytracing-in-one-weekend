@@ -1,5 +1,4 @@
 mod ray;
-mod shape;
 
 use nalgebra::Vector3;
 use std::io::{self, Write};
@@ -54,8 +53,10 @@ fn main() {
 }
 
 fn ray_colour(r: &ray::Ray) -> Colour {
-    if hit_sphere(&Vector3::new(0.0, 0.0, -1.0), 0.5, &r) {
-        return Colour::new(1.0, 0.0, 0.0);
+    let t = hit_sphere(&Vector3::new(0.0, 0.0, -1.0), 0.5, r);
+    if t > 0.0 {
+        let n = (r.at(t) - Vector3::new(0.0, 0.0, -1.0)).normalize();
+        return 0.5 * Colour::new(n.x + 1.0, n.y + 1.0, n.z + 1.0);
     }
     let unit_direction = r.direction();
     let a = 0.5 * (unit_direction.y + 1.0);
@@ -75,14 +76,18 @@ fn write_colour(pixel_colour: &Colour) {
     println!("{} {} {}", rbyte, gbyte, bbyte);
 }
 
-fn hit_sphere(centre: &Vector3<f64>, radius: f64, r: &ray::Ray) -> bool {
+fn hit_sphere(centre: &Vector3<f64>, radius: f64, r: &ray::Ray) -> f64 {
     let oc = centre - r.origin();
     let oc: Vector3<f64> = oc.into();
-    let a = r.direction().dot(r.direction());
-    let b = -2.0 * r.direction().dot(&oc);
-    let c = oc.dot(&oc) - radius * radius;
+    let a = r.direction().magnitude_squared();
+    let h = r.direction().dot(&oc);
+    let c = oc.magnitude_squared() - radius * radius;
 
-    let discriminant = b * b - 4.0 * a * c;
+    let discriminant = h * h - a * c;
 
-    discriminant >= 0.0
+    if discriminant < 0.0 {
+        return -1.0;
+    }
+
+    (h - discriminant.sqrt()) / (a)
 }
