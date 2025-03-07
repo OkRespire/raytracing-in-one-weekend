@@ -1,9 +1,21 @@
+mod hit;
+mod interval;
 mod ray;
+mod shape;
 
+use hit::Hittable;
+use interval::Interval;
 use nalgebra::Vector3;
-use std::io::{self, Write};
+use shape::Sphere;
+use std::{
+    io::{self, Write},
+    sync::Arc,
+};
 
 type Colour = Vector3<f64>;
+
+const PI: f64 = 3.141_592_653_589_793;
+const INFINITY: f64 = f64::INFINITY;
 
 fn main() {
     //Image
@@ -31,6 +43,18 @@ fn main() {
 
     let pixel_00_loc = viewport_upper_left + 0.5 * (pixel_d_v + pixel_d_u);
 
+    let mut world = hit::HitList::new();
+
+    world.add(Arc::new(Sphere {
+        centre: Vector3::new(0.0, 0.0, -1.0),
+        radius: 0.5,
+    }));
+
+    world.add(Arc::new(Sphere {
+        centre: Vector3::new(0.0, -100.5, -1.0),
+        radius: 100.0,
+    }));
+
     //Render
     println!("P3\n{} {}\n255", width, height);
 
@@ -44,7 +68,7 @@ fn main() {
             let ray_dir = pixel_center - cam_center;
             let r = ray::Ray::new(cam_center, ray_dir);
 
-            let pixel_col = ray_colour(&r);
+            let pixel_col = ray_colour(&r, &world);
 
             write_colour(&pixel_col);
         }
@@ -52,11 +76,9 @@ fn main() {
     eprintln!("\rDone               ")
 }
 
-fn ray_colour(r: &ray::Ray) -> Colour {
-    let t = hit_sphere(&Vector3::new(0.0, 0.0, -1.0), 0.5, r);
-    if t > 0.0 {
-        let n = (r.at(t) - Vector3::new(0.0, 0.0, -1.0)).normalize();
-        return 0.5 * Colour::new(n.x + 1.0, n.y + 1.0, n.z + 1.0);
+fn ray_colour<T: Hittable>(r: &ray::Ray, world: &T) -> Colour {
+    if let Some(hit_rec) = world.hit(r, Interval::new(0.0, INFINITY)) {
+        return 0.5 * (hit_rec.normal + Colour::new(1.0, 1.0, 1.0));
     }
     let unit_direction = r.direction();
     let a = 0.5 * (unit_direction.y + 1.0);
@@ -76,18 +98,6 @@ fn write_colour(pixel_colour: &Colour) {
     println!("{} {} {}", rbyte, gbyte, bbyte);
 }
 
-fn hit_sphere(centre: &Vector3<f64>, radius: f64, r: &ray::Ray) -> f64 {
-    let oc = centre - r.origin();
-    let oc: Vector3<f64> = oc.into();
-    let a = r.direction().magnitude_squared();
-    let h = r.direction().dot(&oc);
-    let c = oc.magnitude_squared() - radius * radius;
-
-    let discriminant = h * h - a * c;
-
-    if discriminant < 0.0 {
-        return -1.0;
-    }
-
-    (h - discriminant.sqrt()) / (a)
+fn deg_to_rad(deg: f64) -> f64 {
+    deg * PI / 180.0
 }
