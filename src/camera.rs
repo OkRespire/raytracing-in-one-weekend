@@ -2,21 +2,23 @@ use std::io::{self, Write};
 
 use nalgebra::Vector3;
 
-use crate::{hit::Hittable, interval::Interval, ray, write_colour};
+use crate::{hit::Hittable, interval::Interval, rand_f64, ray, write_colour};
 
 pub struct Camera {
     pub aspect_ratio: f64,      //ratio of img width/ img img_height
     pub img_width: i64,         //rendered img width
+    pub samples_per_pixel: i64, //Count of random samples per pixel
     img_height: i64,            //rendered img height
     center: Vector3<f64>,       //location of the centre of the canmera
     pixel_00_loc: Vector3<f64>, //location of 0,0
     pixel_du: Vector3<f64>,     //offset of the pixel to the right
     pixel_dv: Vector3<f64>,     //offset of the pixel below
+    pixel_samples_scale: f64,   //Colou
 }
 type Colour = Vector3<f64>;
 
 impl Camera {
-    pub fn new(aspect_ratio: f64, img_width: i64) -> Self {
+    pub fn new(aspect_ratio: f64, img_width: i64, samples_per_pixel: i64) -> Self {
         //Image
         //calculates image to ensure it is greater than 1
         let mut img_height = (img_width as f64 / aspect_ratio) as i64;
@@ -41,15 +43,18 @@ impl Camera {
             - viewport_v.scale(0.5);
 
         let pixel_00_loc = viewport_upper_left + (pixel_dv + pixel_du) * 0.5;
+        let pixel_samples_scale = 1.0 / samples_per_pixel as f64;
 
         Camera {
             aspect_ratio,
             img_width,
+            samples_per_pixel,
             img_height,
             center,
             pixel_00_loc,
             pixel_du,
             pixel_dv,
+            pixel_samples_scale,
         }
     }
 
@@ -61,14 +66,13 @@ impl Camera {
             eprint!("\rScanlines remaining {} ", (self.img_height - j));
             io::stderr().flush().unwrap();
 
+            let mut pixel_col = Colour::zeros();
             for i in 0..self.img_width {
-                let pixel_center =
-                    self.pixel_00_loc + (i as f64 * self.pixel_du) + (j as f64 * self.pixel_dv);
-
-                let ray_dir = pixel_center - self.center;
-                let r = ray::Ray::new(self.center, ray_dir);
-
-                let pixel_col = Self::ray_colour(&r, world);
+                for _ in 0..self.samples_per_pixel {
+                    let r = self.get_ray(i, j);
+                    pixel_col += self.ray_colour(&r, world);
+                }
+                pixel_col *= self.pixel_samples_scale;
 
                 write_colour(&pixel_col);
             }
@@ -76,7 +80,23 @@ impl Camera {
         eprintln!("\rDone               ");
     }
 
-    fn ray_colour<T: Hittable>(r: &ray::Ray, world: &T) -> Colour {
+    fn get_ray(&self, i: i64, j: i64) -> ray::Ray {
+        let offset = self.sample_square();
+        let pix_sample = self.pixel_00_loc
+            + (i as f64 + offset.x) * self.pixel_du
+            + (j as f64 + offset.y) * self.pixel_dv;
+
+        let ray_orig = self.center;
+        let ray_dir = pix_sample - ray_orig;
+
+        ray::Ray::new(ray_orig, ray_dir)
+    }
+
+    fn sample_square(&self) -> Vector3<f64> {
+        Vector3::new(rand_f64() - 0.5, rand_f64() - 0.5, 0.0)
+    }
+
+    fn ray_colour<T: Hittable>(&self, r: &ray::Ray, world: &T) -> Colour {
         if let Some(hit_rec) = world.hit(r, Interval::new(0.0, f64::INFINITY)) {
             return 0.5 * (hit_rec.normal + Colour::new(1.0, 1.0, 1.0));
         }
