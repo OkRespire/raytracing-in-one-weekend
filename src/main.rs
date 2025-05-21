@@ -75,3 +75,7 @@ fn rand_f64() -> f64 {
 fn rand_f64_range(min: f64, max: f64) -> f64 {
     min + (max - min) * rand_f64()
 }
+
+fn rand_vec3() -> Vector3 {
+    Vector3::new(rand_f64(), rand_f64(), randf64())
+}
