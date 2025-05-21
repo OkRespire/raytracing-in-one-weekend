@@ -1,5 +1,3 @@
-use core::f64;
-
 pub struct Interval {
     pub min: f64,
     pub max: f64,
@@ -10,7 +8,7 @@ impl Interval {
         Interval { min, max }
     }
 
-    pub fn empty() -> Self {
+    pub fn egpty() -> Self {
         Interval {
             min: f64::INFINITY,
             max: -f64::INFINITY,
