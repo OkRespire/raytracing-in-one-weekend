@@ -2,12 +2,16 @@ use std::io::{self, Write};
 
 use nalgebra::Vector3;
 
-use crate::{hit::Hittable, interval::Interval, rand_f64, ray, write_colour};
+use crate::{
+    hit::Hittable, interval::Interval, rand_f64, rand_on_hemisphere, rand_unit_vec3, ray,
+    write_colour,
+};
 
 pub struct Camera {
     pub aspect_ratio: f64,      //ratio of img width/ img img_height
     pub img_width: i64,         //rendered img width
     pub samples_per_pixel: i64, //Count of random samples per pixel
+    pub max_depth: i64,         // Max number of ray bounces in a scene
     img_height: i64,            //rendered img height
     center: Vector3<f64>,       //location of the centre of the canmera
     pixel_00_loc: Vector3<f64>, //location of 0,0
@@ -18,7 +22,7 @@ pub struct Camera {
 type Colour = Vector3<f64>;
 
 impl Camera {
-    pub fn new(aspect_ratio: f64, img_width: i64, samples_per_pixel: i64) -> Self {
+    pub fn new(aspect_ratio: f64, img_width: i64, samples_per_pixel: i64, max_depth: i64) -> Self {
         //Image
         //calculates image to ensure it is greater than 1
         let mut img_height = (img_width as f64 / aspect_ratio) as i64;
@@ -49,6 +53,7 @@ impl Camera {
             aspect_ratio,
             img_width,
             samples_per_pixel,
+            max_depth,
             img_height,
             center,
             pixel_00_loc,
@@ -70,7 +75,7 @@ impl Camera {
             for i in 0..self.img_width {
                 for _ in 0..self.samples_per_pixel {
                     let r = self.get_ray(i, j);
-                    pixel_col += self.ray_colour(&r, world);
+                    pixel_col += self.ray_colour(&r, self.max_depth, world);
                 }
                 pixel_col *= self.pixel_samples_scale;
 
@@ -96,9 +101,15 @@ impl Camera {
         Vector3::new(rand_f64() - 0.5, rand_f64() - 0.5, 0.0)
     }
 
-    fn ray_colour<T: Hittable>(&self, r: &ray::Ray, world: &T) -> Colour {
-        if let Some(hit_rec) = world.hit(r, Interval::new(0.0, f64::INFINITY)) {
-            return 0.5 * (hit_rec.normal + Colour::new(1.0, 1.0, 1.0));
+    fn ray_colour<T: Hittable>(&self, r: &ray::Ray, depth: i64, world: &T) -> Colour {
+        if depth <= 0 {
+            return Colour::new(0.0, 0.0, 0.0);
+        }
+
+        if let Some(hit_rec) = world.hit(r, Interval::new(0.001, f64::INFINITY)) {
+            let dir = hit_rec.normal + rand_unit_vec3();
+
+            return 0.9 * self.ray_colour(&ray::Ray::new(hit_rec.p, dir), depth - 1, world);
         }
         let unit_direction = r.direction();
         let a = 0.5 * (unit_direction.y + 1.0);
